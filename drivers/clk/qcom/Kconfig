@@ -446,6 +446,7 @@ config SM_DEBUGCC_BENGAL
 
 config SDM_CAMCC_LAGOON
 	tristate "LAGOON Camera Clock Controller"
+	depends on COMMON_CLK_QCOM
 	select SDM_GCC_LAGOON
 	help
 	  Support for the camera clock controller on Qualcomm Technologies, Inc.
@@ -455,6 +456,7 @@ config SDM_CAMCC_LAGOON
 
 config SDM_DEBUGCC_LAGOON
 	tristate "LAGOON Debug Clock Controller"
+	depends on COMMON_CLK_QCOM
 	select SDM_GCC_LAGOON
 	help
 	  Support for the debug clock controller on Qualcomm Technologies, Inc
@@ -464,6 +466,7 @@ config SDM_DEBUGCC_LAGOON
 
 config SDM_DISPCC_LAGOON
 	tristate "LAGOON Display Clock Controller"
+	depends on COMMON_CLK_QCOM
 	select SDM_GCC_LAGOON
 	help
 	  Support for the display clock controller on Qualcomm Technologies, Inc.
@@ -483,6 +486,7 @@ config SDM_GCC_LAGOON
 
 config SDM_GPUCC_LAGOON
 	tristate "LAGOON Graphics Clock Controller"
+	depends on COMMON_CLK_QCOM
 	select SDM_GCC_LAGOON
 	help
 	 Support for the graphics clock controller on Qualcomm Technologies, Inc.
@@ -492,6 +496,7 @@ config SDM_GPUCC_LAGOON
 
 config SDM_NPUCC_LAGOON
 	tristate "LAGOON NPU Clock Controller"
+	depends on COMMON_CLK_QCOM
 	select SDM_GCC_LAGOON
 	help
 	  Support for the NPU clock controller on Qualcomm Technologies, Inc.
@@ -501,6 +506,7 @@ config SDM_NPUCC_LAGOON
 
 config SDM_VIDEOCC_LAGOON
 	tristate "LAGOON Video Clock Controller"
+	depends on COMMON_CLK_QCOM
 	select SDM_GCC_LAGOON
 	help
 	  Support for the video clock controller on Qualcomm Technologies, Inc.
