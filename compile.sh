@@ -3,17 +3,16 @@ export ANDROID_NDK=/opt/android-ndk-r16b
 export NDK_HOME=$ANDROID_NDK
 export PATH=$ANDROID_NDK/toolchains/aarch64-linux-android-4.9/prebuilt/linux-x86_64/bin:$PATH
 
-export CROSS_COMPILE='aarch64-linux-gnu-'
+export CROSS_COMPILE='aarch64-linux-android21-'
 export HOSTLD=ld
-export HOSTCC='gcc'
-export CC='gcc'
-export CPP='g++'
-export CXX='g++'
+export HOSTCC='clang'
+export CC='clang'
+export CPP='clang++'
+export CXX='clang++'
 export LD=ld
 
-export LLVM=0
-export LLVM_IAS=0
-
+export LLVM=1
+export LLVM_IAS=1
 # NetHunter zip settings
 KERNELDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NHKERNEL_DIR="${KERNELDIR}/nethunter"
