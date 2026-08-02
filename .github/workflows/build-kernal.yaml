@@ -144,9 +144,8 @@ jobs:
       # fully ready: `gh release upload` right after `gh release create` can
       # race the GitHub API and return "HTTP 404: Not Found".
       - name: Publish dist/ to GitHub Releases
-        shell: bash
-        paths:
-          - ./out/*
+        shell: b
+
         run: |
           set -euo pipefail
           VERSION=4.19.157
