@@ -145,6 +145,8 @@ jobs:
       # race the GitHub API and return "HTTP 404: Not Found".
       - name: Publish dist/ to GitHub Releases
         shell: bash
+        paths:
+          - ./out/*
         run: |
           set -euo pipefail
           VERSION=4.19.157
@@ -184,7 +186,9 @@ jobs:
             --title "Kernel ${VERSION} — ${DATE}" \
             --notes "$NOTES" \
             --latest
-
+          zip -r9 out.zip out
+          gh releaae upload "$TAG" out.zip
+          find out -type f -name '*.gz' -exec gh release upload "$TAG' {} +
           # Wait until the freshly created release is visible through the API
           # (uploads can otherwise 404 for a few seconds after creation).
           for i in $(seq 1 15); do
