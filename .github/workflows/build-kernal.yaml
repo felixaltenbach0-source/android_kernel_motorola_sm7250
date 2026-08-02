@@ -13,7 +13,7 @@
 name: build-kernel
 on:
   push:
-    branches: [lineage-22.2,*]
+    branches: [lineage-22.2]
     # Strict semver only: the branch-push auto-tag is `v<version>-<date>` and
     # must not match, otherwise force-pushing it would re-trigger this workflow.
     tags:
