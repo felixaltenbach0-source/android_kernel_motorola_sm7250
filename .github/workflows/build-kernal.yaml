@@ -66,7 +66,7 @@ jobs:
             mingw-w64* \
             clang lld llvm \
             upx-ucl \
-            python3 python3-pip python3-setuptools flex build-essential autotools*dev androis-liblog* androis-*ssl* android-libunwind* android-sdk* gcc clang \
+            python3 python3-pip python3-setuptools flex build-essential autotools*dev androis-liblog* android-libunwind* android-sdk* gcc clang \
             git curl wget rustup  unzip zip cmake android-libunwind* android-sdk-build* android-liblog* -qy
           sudo pip install --break-system-packages stem
 
