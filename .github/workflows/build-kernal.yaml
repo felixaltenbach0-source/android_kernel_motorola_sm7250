@@ -96,7 +96,7 @@ jobs:
       - name: Zip out/ contents
         shell: bash
         run: |
-          zip -r out.zip out
+          true
 
       # ===================== AUTO-TAG (tag upon push to master) =====================
       # Creates `v<version>-<date>` on the pushed commit and force-pushes it so
