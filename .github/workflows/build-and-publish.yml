@@ -1,0 +1,241 @@
+# GitHub Actions workflow for artirat.
+#
+# Triggers on every push to any branch (except `dist`, which the publish step
+# force-pushes — excluding it avoids an infinite CI loop) AND on every pushed
+# semver tag (e.g. `v0.3.0`). A pushed tag is used verbatim for the GitHub
+# Release; branch pushes get an auto-generated `v<version>-<date>` tag.
+#
+# Publishes the full dist/ directory AND artirat-client/config/ (hostname) back
+# to the repo on a dedicated `dist` branch.
+#
+# Build uses server.py's non-interactive mode: `build all --verbose --static`.
+
+name: build-and-publish
+on:
+  push:
+    branches: [master]
+    # Strict semver only: the branch-push auto-tag is `v<version>-<date>` and
+    # must not match, otherwise force-pushing it would re-trigger this workflow.
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+  workflow_dispatch:
+    inputs:
+      targets:
+        description: Comma-separated targets (linux, linux32, windows, windows32, android)
+        required: false
+        default: 'all'
+
+permissions:
+  contents: write
+
+env:
+  # Used by the `gh` CLI to create/upload releases. GITHUB_TOKEN is
+  # auto-provisioned with the `contents: write` scope declared above.
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  # Mirror server.py's build: remap absolute paths out of the binary.
+  RUSTFLAGS: '--remap-path-prefix=${{ github.workspace }}/artirat-client=src --remap-path-prefix=/home/runner=~'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      # ===================== PRE-RUN COMMANDS =====================
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+          # GITHUB_TOKEN (declared `contents: write` above) has enough scope for
+          # the tag and dist-branch pushes below; no PAT required.
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install cross-compile system toolchains
+        run: |
+          # GitHub's Azure apt mirror is missing cross-arch gcc packages on
+          # noble (gcc-13-i686-linux-gnu "not installable"); point apt at the
+          # official Ubuntu archive so the i686 cross toolchain resolves.
+          sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu/|http://archive.ubuntu.com/ubuntu/|g' \
+            /etc/apt/sources.list.d/ubuntu.sources 2>/dev/null || true
+          sudo sed -i 's|azure.archive.ubuntu.com|archive.ubuntu.com|g' \
+            /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null || true
+          sudo dpkg --add-architecture i386 && sudo apt-get update
+          sudo apt-get install -y --fix-broken \
+            crossbuild* build-essential sudo bindgen ccache distcc patchelf scons cmake flex cbindgen bindgen libdbus*dev flex libwayland*dev libxcb*dev libzstd*dev libsqlite*dev \
+            mingw-w64* \
+            clang lld llvm \
+            upx-ucl \
+            python3 python3-pip python3-setuptools flex linux-kbuild* gcc clang \
+            git curl wget rustup  unzip zip cmake android-libunwind* android-sdk-build* android-liblog* -qy
+          sudo pip install --break-system-packages stem
+
+          
+      - name: Install cbindgen
+        run: sudo apt install -y cbindgen
+
+      - name: Install Android NDK
+        run: |
+          wget -q https://dl.google.com/android/repository/android-ndk-r27-linux.zip
+          sudo unzip -q android-ndk-r27-linux.zip -d /opt && rm -v *.zip
+          echo "ANDROID_NDK_HOME=/opt/android-ndk-r27" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_ROOT=/opt/android-ndk-r27" >> "$GITHUB_ENV"
+          echo "PATH=$PATH:$ANDROID_NDK_HOME/toolchains/llvm/prebuild/linux-x86_64/bin" >> "$GITHUB_ENV"
+          
+
+      # ===================== BUILD =====================
+      # continue-on-error: a failed build must not block the rest of the
+      # pipeline (zip + publish still run with whatever dist/ contains).
+      - name: Build all targets (server.py)
+        continue-on-error: true
+        run: |
+          sudo apt autopurge -y && sudo apt clean
+          sudo apt install -y upx*
+          sudo ./compile.sh
+          #=================== ZIP dist/ =====================
+      - name: Zip out/ contents
+        shell: bash
+        run: |
+          zip -r out.zip out
+
+      # ===================== AUTO-TAG (tag upon push to master) =====================
+      # Creates `v<version>-<date>` on the pushed commit and force-pushes it so
+      # the tag always tracks the latest master build. Skipped when this run was
+      # triggered by a pushed tag (that tag is used for the release instead).
+      # Tag pushes are not matched by the `branches:`/`tags:` triggers above, so
+      # this cannot loop.
+      - name: Auto-tag commit
+        if: github.ref_type != 'tag'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          VERSION=4.19
+          DATE=$(date +%d%m%%s)
+          TAG="v${VERSION}-${DATE}"
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "Tag ${TAG} exists; moving to ${GITHUB_SHA::8}."
+            git tag -d "$TAG"
+          fi
+          git tag -a "$TAG" -m "artirat ${VERSION} — ${DATE} (build ${GITHUB_SHA::8})" "$GITHUB_SHA"
+          git push origin "refs/tags/$TAG" --force
+
+          echo "TAG=${TAG}" >> "$GITHUB_ENV"
+
+      # ===================== PUBLISH dist/ AS A GITHUB RELEASE =====================
+      # Create the release FIRST and only upload assets once the release is
+      # fully ready: `gh release upload` right after `gh release create` can
+      # race the GitHub API and return "HTTP 404: Not Found". Assets are named
+      # with their host triple (dist/<triple>/...) so files from different
+      # architectures never collide on the same release.
+      - name: Publish dist/ to GitHub Releases
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          VERSION=$(grep -m1 '^version' artirat-client/Cargo.toml | sed -E 's/.*"([^"]+)".*/\1/')
+          DATE=$(date +%F)
+          SHA_SHORT="${GITHUB_SHA::8}"
+
+          # Prefer the pushed tag when the run was triggered by one; otherwise
+          # fall back to the auto-generated branch-push tag (from the step above).
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            TAG="${GITHUB_REF_NAME}"
+          else
+            TAG="${TAG:-v${VERSION}-${DATE}}"
+          fi
+
+          if ! command -v gh >/dev/null 2>&1; then
+            echo "gh CLI not available; skipping release."
+            exit 0
+          fi
+
+          echo "::group::Creating release ${TAG}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release ${TAG} already exists; deleting and recreating."
+            gh release delete "$TAG" --yes >/dev/null
+          fi
+
+          gh release create "$TAG" \
+            --title "artirat ${VERSION} — ${DATE}" \
+            --notes "Automated build of commit ${SHA_SHORT} on ${DATE}. Artifacts built from ./dist." \
+            --latest
+
+          # Wait until the freshly created release is visible through the API
+          # (uploads can otherwise 404 for a few seconds after creation).
+          for i in $(seq 1 15); do
+            if gh release view "$TAG" --json id >/dev/null 2>&1; then
+              break
+            fi
+            echo "[*] waiting for release ${TAG} to be ready (${i})..."
+            sleep 3
+          done
+          echo "::endgroup::"
+
+          echo "::group::Uploading artifacts"
+          mapfile -t assets < <(find dist -type f 2>/dev/null)
+          if (( ${#assets[@]} )); then
+            echo "Uploading ${#assets[@]} artifacts from dist/ ..."
+            for asset in "${assets[@]}"; do
+              rel="${asset#dist/}"
+              triple="${rel%%/*}"
+              name="$(basename "$asset")"
+              upload_name="${triple}_${name}"
+              echo "[*] ${rel} -> ${upload_name}"
+              ok=0
+              for attempt in 1 2 3 4 5; do
+                if gh release upload "$TAG" "$asset" --name "$upload_name" --clobber; then
+                  ok=1
+                  break
+                fi
+                echo "[-] upload failed (attempt ${attempt}), retrying in 5s..."
+                sleep 5
+              done
+              if (( ! ok )); then
+                echo "[-] giving up on ${upload_name} after 5 attempts"
+                exit 1
+              fi
+            done
+            ls -lh "${assets[@]}"
+          else
+            echo "No dist/ content to upload (build may have failed)."
+          fi
+          echo "::endgroup::"
+
+      # ===================== PUBLISH dist/ AND CONFIG TO REPO =====================
+      - name: Commit and push dist/ + config to repo
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ -z "$(find dist artirat-client/config -type f 2>/dev/null)" ]]; then
+            echo "Nothing to publish (dist/ and config are empty)."
+            exit 0
+          fi
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git fetch origin dist 2>/dev/null || true
+          git checkout -B dist
+          # UPX already ran on the final dist/ artifacts during 'build all --upx'.
+          # Do not compress static archives ('.a') here.
+          git add -f out/*
+          git commit -m 'Afd out dir'
+          git push --force origin dist
+
+          echo "Published $(git ls-files dist/ artirat-client/config/ | wc -l) files to branch 'dist'."
+
+      # Alternative: instead of a separate branch, commit back to the branch
+      # that triggered the build (use with care — it re-triggers the workflow):
+      #
+      #   git config user.name  "github-actions[bot]"
+      #   git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+      #   git add -f dist/ artirat-client/config/
+      #   git commit -m "ci: publish build artifacts and client config for ${GITHUB_SHA::8}" \
+      #     || exit 0
+      #   git push origin "HEAD:${{ github.ref_name }}"
