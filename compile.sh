@@ -35,7 +35,7 @@ make O=out ARCH=arm64 prepare
 make O=out ARCH=arm64 modules_prepare
 
 echo "=== Building kernel ==="
-make -j${JOBS} O=out ARCH=arm64 Image.xz
+make -j${JOBS} O=out ARCH=arm64 Image.gz
 make -j${JOBS} O=out ARCH=arm64 modules
 make headers_install \
      O=out \
@@ -51,7 +51,7 @@ rm -rf "${NHKERNEL_DIR}"
 mkdir -p "${NHKERNEL_DIR}"
 mkdir -p "${UPLOAD_DIR}"
 
-cp out/arch/arm64/boot/Image.xz "${NHKERNEL_DIR}/"
+cp out/arch/arm64/boot/Image.gz "${NHKERNEL_DIR}/"
 cp out/arch/arm64/boot/dtbo.img "${NHKERNEL_DIR}/"
 
 if [ -d out/modules_install/lib ]; then
