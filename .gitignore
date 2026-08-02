@@ -135,3 +135,8 @@ all.config
 
 # fetched Android config fragments
 kernel/configs/android-*.cfg
+
+# Kernel build output
+out/
+output/
+nethunter/

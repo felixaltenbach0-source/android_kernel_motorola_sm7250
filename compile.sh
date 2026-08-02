@@ -46,6 +46,13 @@ make -j${JOBS} O=out ARCH=arm64 dtbo
 echo "=== Installing modules ==="
 make O=out ARCH=arm64 INSTALL_MOD_PATH=$PWD/out/modules_install modules_install
 
+# modules_install creates lib/modules/<ver>/build and .../source symlinks that
+# point back into the kernel source tree. `zip` follows symlinks by default, so
+# leaving them in place makes zip recurse nethunter/ -> build/source ->
+# nethunter/ -> ... forever, hanging the machine. Remove them now so neither
+# this script's zip nor the CI `zip -r out.zip out` step can recurse.
+find out/modules_install/lib/modules -maxdepth 2 -type l \( -name build -o -name source \) -delete
+
 echo "=== Packaging NetHunter kernel zip ==="
 rm -rf "${NHKERNEL_DIR}"
 mkdir -p "${NHKERNEL_DIR}"
