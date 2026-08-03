@@ -149,7 +149,10 @@ endif
 KBUILD_DTBS	:= dtbs
 
 ifeq ($(CONFIG_BUILD_ARM64_DT_OVERLAY),y)
-export DTC_FLAGS := -@
+# The Qualcomm camera/lpm overlays reuse labels (e.g. pm8150l_flash0/1) across
+# fragments, which is a valid overlay pattern but trips the duplicate_label
+# ERROR in dtc. -Eno- is required (not -Wno-) since the check is error-class.
+export DTC_FLAGS := -@ -Eno-duplicate_label
 endif
 
 all:	$(KBUILD_DTBS) $(KBUILD_TARGET)

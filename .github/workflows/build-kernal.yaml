@@ -200,7 +200,7 @@ jobs:
             "- nethunter-kernel-NetHunter.zip — NetHunter AnyKernel3 zip (Image + dtbo.img + modules): flash in TWRP or install as a Magisk Manager module (repacks your boot partition, preserving ramdisk/Magisk; modules installed systemlessly)" \
             "- boot.img — Android boot image (header v2): Image + DTB + initramfs; repack with the device ramdisk (magiskboot unpack/repack) before flashing" \
             "- dtbo.img — device tree overlay table (flash to the dtbo partition)" \
-            "- linux-headers-<ver>-arm64.deb — DKMS kernel headers for an arm64 Kali chroot (no linux-image dependency)" \
+            "- linux-headers-*-arm64.deb — DKMS kernel headers for an arm64 Kali chroot (no linux-image dependency)" \
             "- kernel-headers.zip — kernel header files" \
             "- Image.gz — built kernel image" \
             "- initramfs_data.cpio.gz — kernel initramfs")
