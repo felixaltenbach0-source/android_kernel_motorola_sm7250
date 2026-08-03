@@ -41,7 +41,7 @@ make O=out ARCH=arm64 prepare
 make O=out ARCH=arm64 modules_prepare
 
 echo "=== Building kernel ==="
-make -j${JOBS} O=out ARCH=arm64 Image.gz
+make -j${JOBS} O=out ARCH=arm64 Image.xz
 make -j${JOBS} O=out ARCH=arm64 modules
 make headers_install \
      O=out \
@@ -191,10 +191,10 @@ cp scripts/anykernel/anykernel.sh "${NHKERNEL_DIR}/anykernel.sh"
 cp scripts/anykernel/LICENSE "${NHKERNEL_DIR}/"
 
 # Kernel image for AnyKernel3 to install: uncompressed `Image` (the device's
-# BOARD_KERNEL_IMAGE_NAME). Image.gz/dtbo.img/boot.img are carried along as
+# BOARD_KERNEL_IMAGE_NAME). Image.xz/dtbo.img/boot.img are carried along as
 # reference artifacts.
 cp out/arch/arm64/boot/Image "${NHKERNEL_DIR}/Image"
-cp out/arch/arm64/boot/Image.gz "${NHKERNEL_DIR}/"
+cp out/arch/arm64/boot/Image.xz "${NHKERNEL_DIR}/"
 cp out/arch/arm64/boot/dtbo.img "${NHKERNEL_DIR}/"
 [ -f out/arch/arm64/boot/boot.img ] && cp out/arch/arm64/boot/boot.img "${NHKERNEL_DIR}/"
 
