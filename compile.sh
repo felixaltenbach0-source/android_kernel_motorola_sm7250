@@ -3,6 +3,13 @@ export ANDROID_NDK=/opt/android-ndk-r16b
 export NDK_HOME=$ANDROID_NDK
 export PATH=$ANDROID_NDK/toolchains/aarch64-linux-android-4.9/prebuilt/linux-x86_64/bin:$PATH
 
+# merge_config.sh runs `make alldefconfig` internally without an explicit ARCH
+# (it inherits the environment), so ARCH MUST be exported here. Otherwise it
+# configures for the build host (x86_64 on CI) and silently drops every
+# ARM64-only symbol (ARCH_QCOM, MMC_SDHCI_MSM, MSM_BT_POWER, SCSI_UFS_QCOM,
+# QCOM_QMI_HELPERS, ...), which later fails the vmlinux link with undefined
+# qcom_ice_*/sdhci_msm_pm_qos_*/qmi_* symbols.
+export ARCH=arm64
 export CROSS_COMPILE='aarch64-linux-android21-'
 export HOSTLD=ld
 export HOSTCC='clang'
