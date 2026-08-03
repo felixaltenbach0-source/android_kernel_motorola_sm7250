@@ -205,7 +205,7 @@ jobs:
               echo "[*] ${name}"
               ok=0
               for attempt in 1 2 3 4 5; do
-                if gh release upload "$TAG" "$asset" --name "$name" --clobber; then
+                if gh release upload "$TAG" "$asset" --clobber; then
                   ok=1
                   break
                 fi
