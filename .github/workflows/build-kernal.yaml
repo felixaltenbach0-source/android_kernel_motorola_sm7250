@@ -144,7 +144,7 @@ jobs:
       # fully ready: `gh release upload` right after `gh release create` can
       # race the GitHub API and return "HTTP 404: Not Found".
       - name: Publish dist/ to GitHub Releases
-        shell: b
+        shell: bash
 
         run: |
           set -euo pipefail
@@ -185,7 +185,6 @@ jobs:
             --title "Kernel ${VERSION} — ${DATE}" \
             --notes "$NOTES" \
             --latest
-          # find out -type f -name '*.gz' -exec gh release upload "$TAG' {} +
           # Wait until the freshly created release is visible through the API
           # (uploads can otherwise 404 for a few seconds after creation).
           for i in $(seq 1 15); do
@@ -198,7 +197,7 @@ jobs:
           echo "::endgroup::"
 
           echo "::group::Uploading artifacts"
-          mapfile -t assets < <(find out -type f 2>/dev/null)
+          mapfile -t assets < <(find dist -type f 2>/dev/null | sort)
           if (( ${#assets[@]} )); then
             echo "Uploading ${#assets[@]} artifacts from dist/ ..."
             for asset in "${assets[@]}"; do
