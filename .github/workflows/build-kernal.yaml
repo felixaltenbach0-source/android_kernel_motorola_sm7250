@@ -32,6 +32,10 @@ on:
 
 permissions:
   contents: write
+  # GITHUB_TOKEN must be able to push the auto-tag: the tag points at a commit
+  # that modifies .github/workflows/build-kernal.yaml, and GitHub refuses such
+  # pushes by a GitHub App unless the token has `workflows` permission.
+  workflows: write
 
 env:
   # Used by the `gh` CLI to create/upload releases. GITHUB_TOKEN is
