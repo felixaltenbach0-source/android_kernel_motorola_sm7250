@@ -1,0 +1,6 @@
+id=nethunter-kernel-nairo
+name=NetHunter Kernel (Motorola nairo)
+version=@VERSION@
+versionCode=@VERSIONCODE@
+author=NetHunter Build
+description=NetHunter kernel 4.19.157 for Motorola nairo (sm7250/lito). On install it repacks the current boot partition with the bundled Image via magiskboot, preserving the device ramdisk and Magisk patch, and flashes dtbo.img. Kernel modules are provided in /system/lib/modules.

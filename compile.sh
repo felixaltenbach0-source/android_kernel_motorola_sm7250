@@ -210,5 +210,41 @@ cd "${KERNELDIR}"
 
 rm -rf "${NHKERNEL_DIR}"
 
+# Build the Magisk-module variant of the kernel: a proper Magisk module
+# (module.prop + Magisk's module installer) so it installs from Magisk Manager
+# as well as TWRP. At install time customize.sh repacks the CURRENT boot
+# partition with the bundled uncompressed `Image` via magiskboot, preserving
+# the device ramdisk (i.e. the Magisk patch), and flashes the bundled dtbo.img.
+# Kernel modules are shipped under system/lib/modules for systemless loading.
+build_magisk_module() {
+    local MODDIR KVER
+    KVER="$(cat out/include/config/kernel.release 2>/dev/null)"
+    [ -n "${KVER}" ] || KVER="$(make -s O=out ARCH=arm64 kernelrelease)"
+    MODDIR="$(mktemp -d)"
+
+    echo "=== Packaging Magisk module zip (nethunter-kernel-nairo-magisk.zip) ==="
+    mkdir -p "${MODDIR}/META-INF/com/google/android" "${MODDIR}/system/lib/modules/${KVER}"
+
+    sed -e "s/@VERSION@/4.19-$(date +%Y%m%d%H%M%S)/" \
+        -e "s/@VERSIONCODE@/$(date +%Y%m%d)/" \
+        scripts/magisk-module/module.prop.in > "${MODDIR}/module.prop"
+    cp scripts/magisk-module/update-binary "${MODDIR}/META-INF/com/google/android/update-binary"
+    cp scripts/magisk-module/updater-script "${MODDIR}/META-INF/com/google/android/updater-script"
+    cp scripts/magisk-module/customize.sh "${MODDIR}/customize.sh"
+    cp scripts/anykernel/tools/magiskboot "${MODDIR}/magiskboot"
+    cp out/arch/arm64/boot/Image "${MODDIR}/Image"
+    [ -f out/arch/arm64/boot/dtbo.img ] && cp out/arch/arm64/boot/dtbo.img "${MODDIR}/dtbo.img"
+    if [ -d "out/modules_install/lib/modules/${KVER}" ]; then
+        cp -r "out/modules_install/lib/modules/${KVER}/." "${MODDIR}/system/lib/modules/${KVER}/"
+    fi
+
+    ( cd "${MODDIR}" && zip -rq "${UPLOAD_DIR}/nethunter-kernel-nairo-magisk.zip" . )
+    echo "[+] nethunter-kernel-nairo-magisk.zip: $(stat -c %s "${UPLOAD_DIR}/nethunter-kernel-nairo-magisk.zip" 2>/dev/null) bytes"
+    rm -rf "${MODDIR}"
+}
+
+build_magisk_module
+
 echo "=== Done ==="
 echo "Output: ${UPLOAD_DIR}/${NH_ARCHIVE}"
+echo "        ${UPLOAD_DIR}/nethunter-kernel-nairo-magisk.zip"
