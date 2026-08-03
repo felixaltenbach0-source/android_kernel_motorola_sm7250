@@ -17,9 +17,11 @@
 #   - semver tag (vX.Y.Z)
 #   - manual workflow_dispatch
 #
-# On branch pushes an auto-tag `v<version>-<YYYYmmddHHMMSS>` is created and
-# force-pushed so every build is released under a stable, unique tag. Runs
-# triggered by a pushed tag use that tag verbatim for the release.
+# On branch pushes an auto-tag `v<version>-<YYYYmmddHHMMSS>` is created for the
+# build and the release is published under it. The tag itself is auto-created
+# by `gh release create --target` (REST API) rather than git-pushed, so it is
+# not blocked by GitHub's `workflows`-permission rule (see Auto-tag step).
+# Runs triggered by a pushed tag use that tag verbatim for the release.
 
 name: build-kernel
 
@@ -30,12 +32,12 @@ on:
       - 'v[0-9]+.[0-9]+.[0-9]+'
   workflow_dispatch:
 
+# GITHUB_TOKEN cannot be granted the `workflows` permission (it is a GitHub App
+# token), so git pushes of tags pointing at commits that modify
+# .github/workflows/* are refused. The auto-tag is therefore created via the
+# REST API in the publish step instead of `git push`.
 permissions:
   contents: write
-  # GITHUB_TOKEN must be able to push the auto-tag: the tag points at a commit
-  # that modifies .github/workflows/build-kernal.yaml, and GitHub refuses such
-  # pushes by a GitHub App unless the token has `workflows` permission.
-  workflows: write
 
 env:
   # Used by the `gh` CLI to create/upload releases. GITHUB_TOKEN is
@@ -148,11 +150,15 @@ jobs:
           find dist -type f -exec ls -lh {} +
 
       # ===================== AUTO-TAG =====================
-      # Creates `v<version>-<date>` on the pushed commit and force-pushes it so
-      # the tag always tracks the latest build. Skipped when this run was
-      # triggered by a pushed tag (that tag is used for the release instead).
-      # The auto-tag format must not match the semver `tags:` trigger above,
-      # otherwise force-pushing it would loop the workflow.
+      # Computes `v<version>-<date>` for this build. The tag itself is not
+      # created here: `gh release create --target $GITHUB_SHA` in the publish
+      # step auto-creates a missing tag through the REST API. We deliberately
+      # avoid `git push` of the tag because GITHUB_TOKEN is a GitHub App token
+      # without the `workflows` permission, and GitHub refuses git pushes of
+      # tags pointing at commits that modify .github/workflows/*.
+      # Skipped when this run was triggered by a pushed tag (that tag is used
+      # for the release instead). The auto-tag format must not match the semver
+      # `tags:` trigger above, otherwise it would loop the workflow.
       - name: Auto-tag commit
         if: github.ref_type != 'tag'
         shell: bash
@@ -162,16 +168,6 @@ jobs:
           VERSION=4.19
           DATE=$(date +%Y%m%d%H%M%S)
           TAG="v${VERSION}-${DATE}"
-
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null 2>&1; then
-            echo "Tag ${TAG} exists; moving to ${GITHUB_SHA::8}."
-            git tag -d "$TAG"
-          fi
-          git tag -a "$TAG" -m "linux ${VERSION} — ${DATE} (build ${GITHUB_SHA::8})" "$GITHUB_SHA"
-          git push origin "refs/tags/$TAG" --force
 
           echo "TAG=${TAG}" >> "$GITHUB_ENV"
 
@@ -190,10 +186,15 @@ jobs:
 
           # Prefer the pushed tag when the run was triggered by one; otherwise
           # fall back to the auto-generated branch-push tag (from the step above).
+          # For branch pushes the tag may not exist yet: `--target $GITHUB_SHA`
+          # makes the releases API auto-create it at this exact commit. The
+          # fallback keeps the v4.19- format used by the Auto-tag step.
           if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
             TAG="${GITHUB_REF_NAME}"
+            TARGET_OPT=()
           else
-            TAG="${TAG:-v${VERSION}-${DATE}}"
+            TAG="${TAG:-v4.19-${DATE}}"
+            TARGET_OPT=(--target "$GITHUB_SHA")
           fi
 
           if ! command -v gh >/dev/null 2>&1; then
@@ -223,7 +224,8 @@ jobs:
           gh release create "$TAG" \
             --title "Kernel ${VERSION} — ${DATE}" \
             --notes "$NOTES" \
-            --latest
+            --latest \
+            "${TARGET_OPT[@]}"
           # Wait until the freshly created release is visible through the API
           # (uploads can otherwise 404 for a few seconds after creation).
           for i in $(seq 1 15); do
