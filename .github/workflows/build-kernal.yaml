@@ -221,11 +221,29 @@ jobs:
             "- Image.xz — built kernel image" \
             "- initramfs_data.cpio.gz — kernel initramfs")
 
+          # The releases API requires the `workflows` permission (which the
+          # GITHUB_TOKEN can never carry) when the commit range from --target
+          # to the default-branch HEAD contains changes to .github/workflows/*.
+          # That happens when this ~25-min build finishes after a newer push:
+          # $GITHUB_SHA is then no longer the branch HEAD and the range spans
+          # the workflow changes. If the create fails for any reason, fall back
+          # to tagging the *current* default-branch HEAD (empty range), which
+          # only needs `contents: write`.
           gh release create "$TAG" \
             --title "Kernel ${VERSION} — ${DATE}" \
             --notes "$NOTES" \
             --latest \
-            "${TARGET_OPT[@]}"
+            "${TARGET_OPT[@]}" \
+            || {
+              echo "[*] release create at ${GITHUB_SHA} failed (workflows-scope rule); retrying at current default-branch HEAD"
+              HEAD_SHA=$(git ls-remote --heads origin "${GITHUB_REF_NAME}" | awk '{print $1}')
+              echo "[*] fallback target commit: ${HEAD_SHA}"
+              gh release create "$TAG" \
+                --title "Kernel ${VERSION} — ${DATE}" \
+                --notes "$NOTES" \
+                --latest \
+                --target "$HEAD_SHA"
+            }
           # Wait until the freshly created release is visible through the API
           # (uploads can otherwise 404 for a few seconds after creation).
           for i in $(seq 1 15); do
