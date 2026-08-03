@@ -14,13 +14,26 @@
 ui_print " "
 ui_print "NetHunter Kernel (nairo) - installing"
 
+# Locate a partition block device. A/B devices (Current boot slot: _a/_b)
+# name their partitions boot_a/boot_b, so honour SLOT (set by
+# util_functions.sh's mount_partitions) when present, then fall back to the
+# plain name, and finally do a recursive scan of /dev/block (like Magisk's own
+# find_block) for OEM layouts that don't use by-name symlinks.
 find_block() {
-    local part="$1" d
-    [ -e "/dev/block/bootdevice/by-name/$part" ] && { echo "/dev/block/bootdevice/by-name/$part"; return 0; }
-    [ -e "/dev/block/mapper/$part" ] && { echo "/dev/block/mapper/$part"; return 0; }
-    for d in /dev/block/platform/*/*/by-name /dev/block/platform/*/by-name; do
-        [ -e "$d/$part" ] && { echo "$d/$part"; return 0; }
+    local part="$1" n d found slot
+    slot="$SLOT"
+    if [ -z "$slot" ]; then
+        slot=$(grep_cmdline androidboot.slot_suffix 2>/dev/null)
+        [ -n "$slot" ] || slot=$(grep_cmdline androidboot.slot 2>/dev/null)
+        [ -n "$slot" ] && [ "${slot#_}" = "$slot" ] && slot="_${slot}"
+    fi
+    for n in "${part}${slot}" "$part"; do
+        for d in /dev/block/bootdevice/by-name /dev/block/mapper; do
+            [ -e "$d/$n" ] && { readlink -f "$d/$n"; return 0; }
+        done
     done
+    found=$(find /dev/block \( -type b -o -type c -o -type l \) \( -iname "$part" -o -iname "${part}${slot}" \) 2>/dev/null | head -n1)
+    [ -n "$found" ] && { readlink -f "$found"; return 0; }
     return 1
 }
 
