@@ -185,9 +185,7 @@ jobs:
             --title "Kernel ${VERSION} — ${DATE}" \
             --notes "$NOTES" \
             --latest
-          zip -r9 out.zip out
-          gh releaae upload "$TAG" out.zip
-          find out -type f -name '*.gz' -exec gh release upload "$TAG' {} +
+          # find out -type f -name '*.gz' -exec gh release upload "$TAG' {} +
           # Wait until the freshly created release is visible through the API
           # (uploads can otherwise 404 for a few seconds after creation).
           for i in $(seq 1 15); do
@@ -200,7 +198,7 @@ jobs:
           echo "::endgroup::"
 
           echo "::group::Uploading artifacts"
-          mapfile -t assets < <(find dist -type f 2>/dev/null)
+          mapfile -t assets < <(find out -type f 2>/dev/null)
           if (( ${#assets[@]} )); then
             echo "Uploading ${#assets[@]} artifacts from dist/ ..."
             for asset in "${assets[@]}"; do
